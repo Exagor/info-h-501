@@ -21,6 +21,22 @@ class CIFAR10:
         
         self.labels = ['Airplane', 'Bird', 'Horse']
 
+class CIFAR10_complete:
+    def __init__(self, path):
+        self.path = path
+        # Pre-load all data
+        self.train = {}
+        self.test = {}
+        print('Pre-loading training data')
+        self.train['images'] = np.load(os.path.join(path, 'images.npy')).astype('uint8')
+        self.train['hog'] = np.load(os.path.join(path, 'images_hog.npy'))
+        self.train['labels'] = np.load(os.path.join(path, 'labels.npy')).astype('uint8')
+        print('Pre-loading test data')
+        self.test['images'] = np.load(os.path.join(path, 'test_images.npy')).astype('uint8')
+        self.test['hog'] = np.load(os.path.join(path, 'test_images_hog.npy'))
+        self.test['labels'] = np.load(os.path.join(path, 'test_labels.npy')).astype('uint8')
+        
+        self.labels = ['Airplane', 'Automobile', 'Bird', 'Cat', 'Deer','Dog', 'Frog', 'Horse', 'Ship', 'Truck']
 
 def evaluate_classifier(clf, test_data, test_labels):
     pred = clf.predict(test_data)
