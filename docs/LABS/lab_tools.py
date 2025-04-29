@@ -3,6 +3,11 @@ import os
 from sklearn.metrics import confusion_matrix
 from skimage import draw
 from matplotlib import pyplot as plt
+from sklearn.metrics import classification_report
+from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import LearningCurveDisplay
 
 class CIFAR10:    
     def __init__(self, path):
@@ -76,3 +81,97 @@ def get_hog_image(hog, output_size):
                 else:
                     hog_image[rr, cc] += hog[r, c, o]
     return hog_image
+
+
+def find_best_hyperparameters(model, param_grid, X_train, y_train):
+    """
+    Function to find the best hyperparameters for a given model.
+    Return the best model.
+    """
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    grid_search = GridSearchCV(model, param_grid, cv=cv, scoring='accuracy', n_jobs=-1)
+    print("Searching best parameters...")
+    grid_search.fit(X_train, y_train)
+    print("Best parameters: ", grid_search.best_params_)
+    print("Best cross-validation score: ", grid_search.best_score_)
+
+    return grid_search.best_estimator_
+
+def evaluate_parameter(model_class, param_name, param_range, X_train, y_train, X_test, y_test):
+    """
+    Evaluate a model's performance over a range of a specific parameter.
+
+    Args:
+        model_class: The class of the model (e.g., DecisionTreeClassifier).
+        param_name: The name of the parameter to vary (e.g., 'max_depth').
+        param_range: The range of values for the parameter (e.g., range(4, 20, 2)).
+        X_train: Training data features.
+        y_train: Training data labels.
+        X_test: Test data features.
+        y_test: Test data labels.
+
+    Returns:
+        None. Displays a plot of accuracy vs parameter values.
+    """
+    accuracies = []
+
+    for param_value in param_range:
+        # Initialize the model with the specified parameter
+        model = model_class(**{param_name: param_value})
+        # Train the model
+        model.fit(X_train, y_train) #TODO modify to use only the training set (separate in validation set)
+        # Evaluate on the test set
+        accuracy = model.score(X_test, y_test)
+        accuracies.append(accuracy)
+
+    # Plot the results
+    plt.figure()
+    plt.plot(param_range, accuracies, marker='o')
+    plt.title(f'Accuracy vs {param_name}')
+    plt.xlabel(param_name)
+    plt.ylabel('Accuracy')
+    plt.xticks(param_range)
+    plt.grid()
+    plt.show()
+
+def ML_pipeline(model, X_train, y_train, X_test, y_test, plot_curves=False):
+    """
+    ML pipeline for training and testing a model.
+    """
+
+    print("=====================================")
+    print("Descriptive Performance Metrics")
+    print("=====================================")
+    # cross-validation
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    scores = cross_val_score(model, X_train, y_train, cv=cv, scoring='accuracy') #it doesn't train the original model
+    print("Cross-validation is done only on the training set")
+    print("Accuracy from cross-validation :", scores)
+    print("Cross-validation mean accuracy : ", scores.mean())
+    # accuracy on training set
+    model.fit(X_train, y_train)
+    y_pred_train = model.predict(X_train)
+    print("Training set accuracy : ", model.score(X_train, y_train))
+    # confusion matrix on training set
+    cm_train = confusion_matrix(y_train, y_pred_train)
+    print("Confusion Matrix (on training set) :\n",cm_train)
+
+    print("=====================================")
+    print("Predictive Performance Metrics")
+    print("=====================================")
+    y_pred = model.predict(X_test)
+    # accuracy on test set
+    print("Test set accuracy : ", model.score(X_test, y_test))
+    # confusion matrix on test set
+    cm = confusion_matrix(y_test, y_pred)
+    print("Confusion Matrix (on test set) :\n",cm)
+    print(classification_report(y_test, y_pred)) 
+
+    # learning curve
+    if plot_curves:
+        print("Learning Curve :")
+        LearningCurveDisplay.from_estimator(
+            model, X_train, y_train, train_sizes=[500, 1000, 1500, 2000, 2500, 3000], cv=cv)
+
+    return
+
