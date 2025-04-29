@@ -8,6 +8,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import LearningCurveDisplay
+from sklearn.metrics import accuracy_score
 
 class CIFAR10:    
     def __init__(self, path):
@@ -95,9 +96,9 @@ def find_best_hyperparameters(model, param_grid, X_train, y_train):
     print("Best parameters: ", grid_search.best_params_)
     print("Best cross-validation score: ", grid_search.best_score_)
 
-    return grid_search.best_estimator_
+    return grid_search.best_params_
 
-def evaluate_parameter(model_class, param_name, param_range, X_train, y_train, X_test, y_test):
+def evaluate_parameter(model_class, param_name, param_range, X_train, y_train, fixed_params=None, plot=True):
     """
     Evaluate a model's performance over a range of a specific parameter.
 
@@ -107,32 +108,34 @@ def evaluate_parameter(model_class, param_name, param_range, X_train, y_train, X
         param_range: The range of values for the parameter (e.g., range(4, 20, 2)).
         X_train: Training data features.
         y_train: Training data labels.
-        X_test: Test data features.
-        y_test: Test data labels.
+        fixed_params: A dictionary of parameters to keep fixed (e.g., {'random_state': 42}).
 
     Returns:
         None. Displays a plot of accuracy vs parameter values.
     """
     accuracies = []
-
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     for param_value in param_range:
-        # Initialize the model with the specified parameter
-        model = model_class(**{param_name: param_value})
-        # Train the model
-        model.fit(X_train, y_train) #TODO modify to use only the training set (separate in validation set)
+        # Combine fixed parameters with the parameter being varied
+        params = {**(fixed_params or {}), param_name: param_value}
+        # Initialize the model with the specified parameters
+        model = model_class(**params)
         # Evaluate on the test set
-        accuracy = model.score(X_test, y_test)
+        accuracy = cross_val_score(model, X_train, y_train, cv=cv, scoring='accuracy').mean()
         accuracies.append(accuracy)
 
     # Plot the results
-    plt.figure()
-    plt.plot(param_range, accuracies, marker='o')
-    plt.title(f'Accuracy vs {param_name}')
-    plt.xlabel(param_name)
-    plt.ylabel('Accuracy')
-    plt.xticks(param_range)
-    plt.grid()
-    plt.show()
+    if plot:
+        plt.figure()
+        plt.plot(param_range, accuracies, marker='o')
+        plt.title(f'Accuracy in function of {param_name}')
+        plt.xlabel(param_name)
+        plt.ylabel('Accuracy')
+        plt.xticks(param_range)
+        plt.grid()
+        plt.show()
+
+    return accuracies
 
 def ML_pipeline(model, X_train, y_train, X_test, y_test, plot_curves=False):
     """
@@ -142,7 +145,7 @@ def ML_pipeline(model, X_train, y_train, X_test, y_test, plot_curves=False):
     print("=====================================")
     print("Descriptive Performance Metrics")
     print("=====================================")
-    # cross-validation
+    # cross-validation (how well it should perform on unseen data)
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     scores = cross_val_score(model, X_train, y_train, cv=cv, scoring='accuracy') #it doesn't train the original model
     print("Cross-validation is done only on the training set")
@@ -151,7 +154,7 @@ def ML_pipeline(model, X_train, y_train, X_test, y_test, plot_curves=False):
     # accuracy on training set
     model.fit(X_train, y_train)
     y_pred_train = model.predict(X_train)
-    print("Training set accuracy : ", model.score(X_train, y_train))
+    print("Training set accuracy (cheating) : ", accuracy_score(y_train,y_pred_train))
     # confusion matrix on training set
     cm_train = confusion_matrix(y_train, y_pred_train)
     print("Confusion Matrix (on training set) :\n",cm_train)
@@ -160,12 +163,12 @@ def ML_pipeline(model, X_train, y_train, X_test, y_test, plot_curves=False):
     print("Predictive Performance Metrics")
     print("=====================================")
     y_pred = model.predict(X_test)
-    # accuracy on test set
-    print("Test set accuracy : ", model.score(X_test, y_test))
+    # accuracy on test set (the performance on unseen data)
+    print("Test set accuracy : ", accuracy_score(y_test, y_pred))
     # confusion matrix on test set
     cm = confusion_matrix(y_test, y_pred)
     print("Confusion Matrix (on test set) :\n",cm)
-    print(classification_report(y_test, y_pred)) 
+    print("Classification report :\n",classification_report(y_test, y_pred)) 
 
     # learning curve
     if plot_curves:
@@ -173,5 +176,5 @@ def ML_pipeline(model, X_train, y_train, X_test, y_test, plot_curves=False):
         LearningCurveDisplay.from_estimator(
             model, X_train, y_train, train_sizes=[500, 1000, 1500, 2000, 2500, 3000], cv=cv)
 
-    return
+    return scores.mean(), accuracy_score(y_test, y_pred), cm
 
