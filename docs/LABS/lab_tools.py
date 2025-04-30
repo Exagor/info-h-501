@@ -168,7 +168,7 @@ def ML_pipeline(model, X_train, y_train, X_test, y_test, plot_curves=False):
     # confusion matrix on test set
     cm = confusion_matrix(y_test, y_pred)
     print("Confusion Matrix (on test set) :\n",cm)
-    print("Classification report :\n",classification_report(y_test, y_pred)) 
+    print("Classification report :\n",classification_report(y_test, y_pred, digits=3)) 
 
     # learning curve
     if plot_curves:
